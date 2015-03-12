@@ -1,0 +1,235 @@
+<html> 
+<head> 
+<meta charset="utf-8" />
+<title>Trapped Sun</title>
+
+<!-- Made by Andrea Kereliuk and Lei Xu for Sheridan !MM, 2015 -->
+
+<style> 
+    body {margin:0px;} 
+    canvas {width:100%; height:100%} 
+</style>
+</head> 
+<body> 
+<script src="http://cdnjs.cloudflare.com/ajax/libs/three.js/r69/three.min.js"></script>
+<script src="js/orbitControls.js"></script>
+<script src="js/THREEx.KeyboardState.js"></script>
+<script src="js/THREEx.FullScreen.js"></script>
+<script src="js/THREEx.WindowResize.js"></script>
+
+<script> 
+
+    //global variables
+    var collidableMeshList = [];
+    var clock = new THREE.Clock();
+    var keyboard = new THREEx.KeyboardState();
+    var direction = 1;
+
+    // SCENE
+    var scene = new THREE.Scene(); 
+    
+    // CAMERA
+    var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = -10;
+    
+    // RENDERER
+    var renderer = new THREE.WebGLRenderer({antialias:true}); 
+    renderer.setSize(window.innerWidth, window.innerHeight); 
+    document.body.appendChild(renderer.domElement);
+    
+    // GEOMETRY
+
+    var spaceGeometry = new THREE.BoxGeometry(150,150,150);   
+    var spaceImg = new THREE.ImageUtils.loadTexture('imgs/starsky.jpg');
+
+    // MATERIAL
+
+    var spaceMaterialArray = [];
+    // order to add materials: x+,x-,y+,y-,z+,z-
+    spaceMaterialArray.push(new THREE.MeshBasicMaterial({map: spaceImg, side: THREE.DoubleSide } ) );
+    spaceMaterialArray.push(new THREE.MeshBasicMaterial({map:spaceImg, side: THREE.DoubleSide}));
+    spaceMaterialArray.push(new THREE.MeshBasicMaterial({map:spaceImg, side: THREE.DoubleSide}));
+    spaceMaterialArray.push(new THREE.MeshBasicMaterial({map:spaceImg, side: THREE.DoubleSide} ) );
+    spaceMaterialArray.push(new THREE.MeshBasicMaterial({map:spaceImg, side: THREE.DoubleSide}));
+    spaceMaterialArray.push(new THREE.MeshBasicMaterial({map:spaceImg, side: THREE.DoubleSide}));
+    var spaceMaterial = new THREE.MeshFaceMaterial(spaceMaterialArray);
+     
+    // BOX WALLS FOR HIT TEST
+
+    var wallGeometryX = new THREE.BoxGeometry(150,150,5); // X walls
+    var wallGeometryY = new THREE.BoxGeometry(150,5,150); // Y walls
+    var wallGeometryZ = new THREE.BoxGeometry(5,150,150); // Z walls
+    var wallMaterial = new THREE.MeshBasicMaterial({color:0xFFFFFF, transparent:true, opacity:0, side: THREE.DoubleSide}); 
+    // transparent so that space can be visible instead
+
+        //positive x wall
+        var wallPX = new THREE.Mesh(wallGeometryX, wallMaterial);
+        wallPX.position.set(0,0,77.5);
+        scene.add(wallPX);
+
+        //negative x wall
+        var wallNX = new THREE.Mesh(wallGeometryX, wallMaterial);
+        wallNX.position.set(0,0,-77.5);
+        scene.add(wallNX);
+
+        //positive y wall
+        var wallPY = new THREE.Mesh(wallGeometryY, wallMaterial);
+        wallPY.position.set(0,77.5,0);
+        scene.add(wallPY);
+
+        //negative y wall
+        var wallNY = new THREE.Mesh(wallGeometryY, wallMaterial);
+        wallNY.position.set(0,-77.5,0);
+        scene.add(wallNY);  
+
+        //positive z wall
+        var wallPZ = new THREE.Mesh(wallGeometryZ, wallMaterial);
+        wallPZ.position.set(77.5,0,0);
+        scene.add(wallPZ);
+
+        //negative z wall
+        var wallNZ = new THREE.Mesh(wallGeometryZ, wallMaterial);
+        wallNZ.position.set(-77.5,0,0);
+        scene.add(wallNZ);
+
+        //push all walls to mesh list for hit test
+        collidableMeshList.push(wallPX);
+        collidableMeshList.push(wallNX);
+        collidableMeshList.push(wallPY);
+        collidableMeshList.push(wallNY);
+        collidableMeshList.push(wallPZ);
+        collidableMeshList.push(wallNZ);
+
+    // MESH
+    
+    var space = new THREE.Mesh(spaceGeometry, spaceMaterial); // join shape and material
+    space.position.set(0,0,0);
+    scene.add(space); 
+    
+    // LIGHT
+    
+    var light = new THREE.PointLight(0xffffff);
+    light.position.set(0,250,100);
+    scene.add(light);
+
+    var light2 = new THREE.PointLight(0xffffff);
+    light2.position.set(400,250,100);
+    scene.add(light2);
+
+    var light3 = new THREE.PointLight(0xffffff);
+    light3.position.set(0,-250,-100);
+    scene.add(light3);
+
+    var light4 = new THREE.PointLight(0xffffff);
+    light4.position.set(-400,-250,-100);
+    scene.add(light4);
+
+    // ETC. -- SUN
+    var sunGeometry = new THREE.SphereGeometry(3, 64, 64);
+    var sunImg = new THREE.ImageUtils.loadTexture('imgs/sunmap.jpg');
+    var sunMaterial = new THREE.MeshLambertMaterial({map: sunImg});
+
+    //IF IMAGE MAP IS TOO HEAVY OR FIREFOX CRASHES WHEN LOADING, USE THIS INSTEAD OF ABOVE TWO LINES
+    //var sunMaterial = new THREE.MeshLambertMaterial({color:0xffffff});
+
+
+    bouncySun = new THREE.Mesh(sunGeometry, sunMaterial);
+    scene.add(bouncySun);
+
+    // CONTROLS
+    
+    var controls = new THREE.OrbitControls(camera, renderer.domElement);
+    
+    // ANIMATION
+    function render() {
+        // animate mesh or camera (or lights)
+        
+        requestAnimationFrame(render); 
+        renderer.render(scene, camera); 
+        update();
+
+    } 
+    render();
+
+    function update() {
+        var delta = clock.getDelta() //seconds
+
+        var moveDistance = 30 * delta; // 200 pixels per second
+        var rotateAngle = Math.PI / 3 * delta;   // pi/2 radians (90 degrees) per second
+
+        // spin the sun!
+        bouncySun.rotation.y += rotateAngle;
+        
+        // 2-way movement        
+        if ( keyboard.pressed("right") )
+            bouncySun.position.x -= moveDistance * direction;
+        if ( keyboard.pressed("left") )
+            bouncySun.position.x += moveDistance * direction;
+        if ( keyboard.pressed("down") )
+           bouncySun.position.z -= moveDistance * direction;
+        if ( keyboard.pressed("up") )
+            bouncySun.position.z += moveDistance * direction;
+        // 3-way movement
+        if ( keyboard.pressed("down") && keyboard.pressed("left") )
+            bouncySun.position.y -= moveDistance * direction;
+        if ( keyboard.pressed("up") && keyboard.pressed("left") )
+            bouncySun.position.y += moveDistance * direction;
+        if ( keyboard.pressed("down") && keyboard.pressed("right") )
+            bouncySun.position.y -= moveDistance * direction;
+        if ( keyboard.pressed("up") && keyboard.pressed("right") )
+            bouncySun.position.y += moveDistance * direction;
+
+        // save original positioning
+        var originPoint = bouncySun.position.clone();
+
+        //Vertex map and then test whether rays intersecting
+        for (var vertexIndex = 0; vertexIndex < bouncySun.geometry.vertices.length; vertexIndex++)
+        {       
+            var localVertex = bouncySun.geometry.vertices[vertexIndex].clone();
+            var globalVertex = localVertex.applyMatrix4(bouncySun.matrix );
+            var directionVector = globalVertex.sub(bouncySun.position );
+            
+            var ray = new THREE.Raycaster( originPoint, directionVector.clone().normalize() );
+            var collisionResults = ray.intersectObjects( collidableMeshList );
+            if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() )  { 
+                
+                //testing for hits, in this order: +y, -y, +z, -z, +x, -x 
+                if (bouncySun.position.y >= 74) { // if travelling up (+y)
+                    direction *= -1;
+                    bouncySun.position.y -=5;
+                    break;
+                } else if (bouncySun.position.y <= -74) { // if travelling down (-y)
+                    direction *= -1;
+                    bouncySun.position.y +=5;
+                    break;
+                } else { //if the sun hasn't hit either of the top or bottom cube faces
+                    if ( keyboard.pressed("up") || keyboard.pressed("down") ) {
+                        direction *= -1;
+                        if (bouncySun.position.z > 0) { // if travelling away from camera (+z)
+                            bouncySun.position.z -=5;
+                        } else { // if travelling towards camera (-z)
+                            bouncySun.position.z +=5;
+                        }
+                        break;
+                    } else if ( keyboard.pressed("left") || keyboard.pressed("right") ) {
+                        direction *= -1;
+                        if (bouncySun.position.x > 0) { // if travelling right (+x)
+                            bouncySun.position.x -=5;
+                        } else { // if travelling left (-x)
+                            bouncySun.position.x +=5;
+                        }
+                        break;
+                    } else {
+                        break;
+                    }
+                }
+            } 
+        }   
+
+        controls.update();
+
+
+    }
+
+</script>
+</body></html>
